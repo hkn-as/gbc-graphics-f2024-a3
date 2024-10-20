@@ -28,10 +28,16 @@ struct Mesh
 	GLuint nbo = GL_NONE;	// Normals buffer object
 	GLuint tbo = GL_NONE;	// Tcoords buffer object
 	GLuint ebo = GL_NONE;	// Element buffer object (indices)
-};
+	GLuint vbo = GL_NONE;
+	GLuint yourBufferID = GL_NONE;
+	GLuint data = GL_NONE;
 
+	
+};
+void SetupMesh(Mesh* mesh);
 void CreateMesh(Mesh* mesh, const char* path);
 void CreateMesh(Mesh* mesh, ShapeType shape);
 void DestroyMesh(Mesh* mesh);
+
 
 void DrawMesh(const Mesh& mesh);

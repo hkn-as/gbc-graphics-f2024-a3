@@ -30,6 +30,7 @@ bool IsKeyUp(int key);
 bool IsKeyPressed(int key);
 
 void Print(Matrix m);
+GLuint LoadShaders(const char* vertex_file_path, const char* fragment_file_path);
 
 enum Projection : int
 {
@@ -191,7 +192,7 @@ int main(void)
     // Render looks weird cause this isn't enabled, but its causing unexpected problems which I'll fix soon!
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
-
+    GLuint shaderProgram = LoadShaders("path/to/vertex_shader.vert", "path/to/fragment_shader.frag");
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window))
     {
@@ -207,6 +208,11 @@ int main(void)
 
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glUseProgram(shaderProgram);  // Bind your shader program here
+        glBindVertexArray(objMesh.vao);  // Bind your VAO (Vertex Array Object)
+        glDrawArrays(GL_TRIANGLES, 0, objMesh.count);  // Render the plane
+        glBindVertexArray(0);  // Unbind the VAO
+
 
         float time = glfwGetTime();
 
@@ -308,6 +314,20 @@ int main(void)
             glUniformMatrix4fv(u_mvp, 1, GL_FALSE, ToFloat16(mvp).v);
             DrawMesh(shapeMesh);
             break;
+        case 6:
+            shaderProgram = shaderTcoords;  // Use the appropriate shader for the object
+            glUseProgram(shaderProgram);
+
+            // Set the transformation (world) and projection (view * proj) matrices
+            world = MatrixIdentity();
+            mvp = world * view * proj;
+
+            u_mvp = glGetUniformLocation(shaderProgram, "u_mvp");
+            glUniformMatrix4fv(u_mvp, 1, GL_FALSE, ToFloat16(mvp).v);
+
+            // Draw the new mesh (plane.obj or any other object)
+            DrawMesh(objMesh);  // Use the DrawMesh function to render the object
+            break;
         }
 
         ImGui_ImplOpenGL3_NewFrame();
@@ -375,6 +395,70 @@ void error_callback(int error, const char* description)
 {
     printf("GLFW Error %d: %s\n", error, description);
 }
+
+GLuint LoadShaders(const char* vertex_file_path, const char* fragment_file_path) {
+    // 1. Create the shaders
+    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
+    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+
+    // 2. Load the shader code from the file paths
+    std::string vertexCode, fragmentCode;
+    std::ifstream vShaderFile(vertex_file_path);
+    std::ifstream fShaderFile(fragment_file_path);
+
+    if (vShaderFile.is_open() && fShaderFile.is_open()) {
+        std::stringstream vShaderStream, fShaderStream;
+        vShaderStream << vShaderFile.rdbuf();
+        fShaderStream << fShaderFile.rdbuf();
+        vertexCode = vShaderStream.str();
+        fragmentCode = fShaderStream.str();
+    }
+    else {
+        std::cerr << "Error opening shader files!" << std::endl;
+        return 0;
+    }
+
+    const char* vShaderCode = vertexCode.c_str();
+    const char* fShaderCode = fragmentCode.c_str();
+
+    // 3. Compile vertex shader
+    glShaderSource(vertexShader, 1, &vShaderCode, nullptr);
+    glCompileShader(vertexShader);
+    GLint success;
+    GLchar infoLog[512];
+    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(vertexShader, 512, nullptr, infoLog);
+        std::cerr << "Error compiling vertex shader: " << infoLog << std::endl;
+    }
+
+    // 4. Compile fragment shader
+    glShaderSource(fragmentShader, 1, &fShaderCode, nullptr);
+    glCompileShader(fragmentShader);
+    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(fragmentShader, 512, nullptr, infoLog);
+        std::cerr << "Error compiling fragment shader: " << infoLog << std::endl;
+    }
+
+    // 5. Link shaders into a program
+    GLuint shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, vertexShader);
+    glAttachShader(shaderProgram, fragmentShader);
+    glLinkProgram(shaderProgram);
+    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+    if (!success) {
+        glGetProgramInfoLog(shaderProgram, 512, nullptr, infoLog);
+        std::cerr << "Error linking shader program: " << infoLog << std::endl;
+    }
+
+    // 6. Cleanup shaders (they are linked into the program, no longer needed)
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+
+    return shaderProgram;
+}
+
 
 // Compile a shader
 GLuint CreateShader(GLint type, const char* path)
